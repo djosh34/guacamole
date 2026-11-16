@@ -432,11 +432,16 @@ func TestDisconnected(t *testing.T) {
 	open(t, "default", teststack.View{})
 	// Ending the SSH session makes Guacamole show its disconnect dialog.
 	compose(t, "", "exec", "-T", "ssh-target", "pkill", "-u", "tester")
+	// While the session ends, guac can fail before Guacamole shows its
+	// dialog; the next call then reports the dialog.
 	var errOut string
 	var code int
 	for end := time.Now().Add(15 * time.Second); time.Now().Before(end); time.Sleep(300 * time.Millisecond) {
-		if _, errOut, code = guac(t, "screen"); code != 0 {
+		if _, errOut, code = guac(t, "screen"); code == 1 && strings.Contains(strings.ToLower(errOut), "disconnected") {
 			break
+		}
+		if code != 0 {
+			t.Logf("guac screen while the session ends: exit %d: %s", code, strings.TrimSpace(errOut))
 		}
 	}
 	if code != 1 || !strings.Contains(strings.ToLower(errOut), "disconnected") {

@@ -237,7 +237,7 @@ func TestReconnect(t *testing.T) {
 		var code int
 		var errOut string
 		for end := time.Now().Add(15 * time.Second); time.Now().Before(end); time.Sleep(300 * time.Millisecond) {
-			if _, errOut, code = guac(t, args...); code != 0 {
+			if _, errOut, code = guac(t, args...); code == 1 && strings.Contains(strings.ToLower(errOut), "disconnected") {
 				break
 			}
 		}
