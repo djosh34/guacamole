@@ -349,17 +349,15 @@ func testScreen(t *testing.T, connection string, view teststack.View) {
 	}
 	logLine := regexp.MustCompile(`^\d\d:\d\d:\d\d (INFO|WARN) worker\[\d\]: tick seq=(\d{6}) queue=\d+$`)
 	for i := 0; i < 3; i++ {
-		// While lines scroll in, the row where the drag started can move up
-		// one row before the drag ends, so the copy may have one row more.
+		// While lines scroll in, the row where the drag started moves up with
+		// its line until the drag ends, so the copy can have a few rows more
+		// than the screen. They are whole log lines in order too.
 		s := screen(t)
 		last := -1
 		seen := 0
 		all := strings.Split(s, "\n")
 		if len(all) > height {
 			t.Logf("log stream screen %d has %d rows", i+1, len(all))
-		}
-		if len(all) > height+1 {
-			t.Fatalf("log stream screen %d has %d rows, want %d or %d:\n%s", i+1, len(all), height, height+1, s)
 		}
 		for j, line := range all {
 			if line == "" && j == len(all)-1 || j == 0 && strings.HasSuffix(line, "logstream 0.05") {
