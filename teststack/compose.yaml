@@ -1,0 +1,72 @@
+# Guacamole test stack: guacd, the Guacamole web app (file auth, no database)
+# and an SSH target. Each user of the stack picks its own project name, so
+# several stacks run on one host. Host ports are random; read them with
+# `docker compose port guacamole 8080`.
+#
+#   GUAC_VERSION=1.6.0 docker compose -p mystack -f teststack/compose.yaml up -d --build
+#
+# Login guacuser / guacpass. Each connection uses a different font.
+
+services:
+  guacd:
+    image: guacamole/guacd:${GUAC_VERSION:-1.6.0}
+
+  guacamole:
+    image: guacamole/guacamole:${GUAC_VERSION:-1.6.0}
+    depends_on: [guacd, ssh-target]
+    environment:
+      GUACD_HOSTNAME: guacd
+      GUACD_PORT: "4822"
+      # The 1.4 and 1.5 images only start file auth when GUACAMOLE_HOME holds it.
+      GUACAMOLE_HOME: /etc/guacamole
+    configs:
+      - source: user-mapping
+        target: /etc/guacamole/user-mapping.xml
+    ports:
+      - "127.0.0.1::8080"
+
+  ssh-target:
+    build: ./ssh-target
+    hostname: ssh-target
+    ports:
+      - "127.0.0.1::22"
+
+configs:
+  user-mapping:
+    # Parameter reference: https://guacamole.apache.org/doc/gug/configuring-guacamole.html#ssh
+    content: |
+      <user-mapping>
+        <authorize username="guacuser" password="guacpass">
+          <connection name="default">
+            <protocol>ssh</protocol>
+            <param name="hostname">ssh-target</param>
+            <param name="username">tester</param>
+            <param name="password">tester</param>
+          </connection>
+          <connection name="dejavu-10">
+            <protocol>ssh</protocol>
+            <param name="hostname">ssh-target</param>
+            <param name="username">tester</param>
+            <param name="password">tester</param>
+            <param name="font-name">DejaVu Sans Mono</param>
+            <param name="font-size">10</param>
+          </connection>
+          <connection name="liberation-14">
+            <protocol>ssh</protocol>
+            <param name="hostname">ssh-target</param>
+            <param name="username">tester</param>
+            <param name="password">tester</param>
+            <param name="font-name">Liberation Mono</param>
+            <param name="font-size">14</param>
+            <param name="color-scheme">white-black</param>
+          </connection>
+          <connection name="noto-18">
+            <protocol>ssh</protocol>
+            <param name="hostname">ssh-target</param>
+            <param name="username">tester</param>
+            <param name="password">tester</param>
+            <param name="font-name">Noto Sans Mono</param>
+            <param name="font-size">18</param>
+          </connection>
+        </authorize>
+      </user-mapping>

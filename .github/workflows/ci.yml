@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
+      - run: go vet ./...
+      - run: go vet -tags e2e ./...
+      - run: go test ./...
+
+  e2e:
+    strategy:
+      fail-fast: false
+      matrix:
+        guacamole: [1.4.0, 1.5.5, 1.6.0]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: e2e test against Guacamole ${{ matrix.guacamole }}
+        env:
+          GUAC_VERSION: ${{ matrix.guacamole }}
+        run: go test -tags e2e -count=1 -v -timeout 20m ./e2e
