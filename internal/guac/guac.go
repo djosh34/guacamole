@@ -31,6 +31,11 @@ func Sessions(ctx context.Context, c *cdp.Conn) ([]Session, error) {
 	}
 	var found []Session
 	for _, tab := range tabs {
+		// Every Guacamole client page has #/client/ in its URL. Other tabs
+		// are not asked, so a hung or frozen tab cannot block guac.
+		if !strings.Contains(tab.URL, "#/client/") {
+			continue
+		}
 		s, ok, err := session(ctx, c, tab)
 		if err != nil {
 			return nil, fmt.Errorf("page %d (%s): %w", tab.Number, tab.URL, err)

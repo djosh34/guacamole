@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -256,9 +257,24 @@ type Tab struct {
 	Session string
 }
 
-// Close closes the tab and the connection.
+// Close closes the tab and the connection. It returns once the tab is gone.
 func (t *Tab) Close(ctx context.Context) error {
 	err := t.Conn.Call(ctx, "", "Target.closeTarget", map[string]any{"targetId": t.ID}, nil)
+	for end := time.Now().Add(10 * time.Second); err == nil; {
+		tabs, terr := t.Conn.Tabs(ctx)
+		if terr != nil {
+			err = terr
+			break
+		}
+		if !slices.ContainsFunc(tabs, func(tab cdp.Tab) bool { return tab.ID == t.ID }) {
+			break
+		}
+		if time.Now().After(end) {
+			err = errors.New("the tab did not close")
+			break
+		}
+		err = sleep(ctx, 100*time.Millisecond)
+	}
 	return errors.Join(err, t.Conn.Close())
 }
 
@@ -358,10 +374,19 @@ func (t *Tab) open(ctx context.Context, guacURL, connection string, view View) e
 	if err := t.navigate(ctx, guacURL+"#/client/"+id); err != nil {
 		return err
 	}
-	return t.WaitJS(ctx, "connected session", `(() => {
+	err = t.WaitJS(ctx, "connected session", `(() => {
 		const m = angular.element(document.documentElement).injector().get('guacClientManager').getManagedClients()['`+id+`'];
 		return m && m.clientState.connectionState === 'CONNECTED' && m.client.getDisplay().getWidth() > 0;
 	})()`, 60*time.Second)
+	if err != nil {
+		// Say what the page shows instead.
+		var shows string
+		if jsErr := t.Eval(ctx, `document.querySelector('.client-status-modal')?.innerText || document.body.innerText.slice(0, 300)`, &shows); jsErr != nil {
+			shows = jsErr.Error()
+		}
+		return fmt.Errorf("%w; the page shows: %q", err, shows)
+	}
+	return nil
 }
 
 func (t *Tab) navigate(ctx context.Context, url string) error {

@@ -1,6 +1,6 @@
 # SSH target for the Guacamole test stack. It has what the real use needs:
 # a shell, grep, tail, a log stream that never ends (logstream) and long log
-# files in /var/log/app.
+# files in /var/log/app. The old libssh2 in guacd 1.4 needs ssh-rsa host keys.
 FROM alpine:3.22
 
 RUN apk add --no-cache openssh bash coreutils grep procps \
@@ -9,6 +9,7 @@ RUN apk add --no-cache openssh bash coreutils grep procps \
  && echo 'tester:tester' | chpasswd \
  && sed -i -e 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' \
            -e 's/^#\?KbdInteractiveAuthentication.*/KbdInteractiveAuthentication yes/' /etc/ssh/sshd_config \
+ && printf 'HostKeyAlgorithms +ssh-rsa\nKexAlgorithms +diffie-hellman-group14-sha1\n' >> /etc/ssh/sshd_config \
  && printf 'export PS1="\\u@\\h:\\w\\$ "\n' > /home/tester/.bashrc \
  && printf '[ -f ~/.bashrc ] && . ~/.bashrc\n' > /home/tester/.bash_profile \
  && chown tester:tester /home/tester/.bashrc /home/tester/.bash_profile

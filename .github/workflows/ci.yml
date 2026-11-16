@@ -41,3 +41,6 @@ jobs:
         env:
           GUAC_VERSION: ${{ matrix.guacamole }}
         run: go test -tags e2e -count=1 -v -timeout 20m ./e2e
+      - name: container logs
+        if: failure()
+        run: for c in $(docker ps -aq); do docker logs --tail 100 "$c"; done

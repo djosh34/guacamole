@@ -338,7 +338,10 @@ func testScreen(t *testing.T, connection string, view teststack.View) {
 	// A log stream that never ends. Each screen shows whole log lines in
 	// order, then Ctrl+C stops the stream.
 	typeText(t, tab, "clear; logstream 0.05\n")
-	time.Sleep(2 * time.Second)
+	// Wait until the stream has scrolled the command line off the screen.
+	if got, ok := eventually(t, func(s string) bool { return strings.Count(s, " tick seq=") >= height }); !ok {
+		t.Fatalf("the log stream did not fill the screen:\n%s", got)
+	}
 	logLine := regexp.MustCompile(`^\d\d:\d\d:\d\d (INFO|WARN) worker\[\d\]: tick seq=(\d{6}) queue=\d+$`)
 	for i := 0; i < 3; i++ {
 		// While lines scroll in, the row where the drag started can move up
