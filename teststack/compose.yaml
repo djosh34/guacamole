@@ -5,7 +5,8 @@
 #
 #   GUAC_VERSION=1.6.0 docker compose -p mystack -f teststack/compose.yaml up -d
 #
-# Login guacuser / guacpass. Each connection uses a different font.
+# Login guacuser / guacpass. Each connection uses a different font;
+# no-paste refuses text from the browser's clipboard.
 
 services:
   guacd:
@@ -67,6 +68,13 @@ configs:
             <param name="password">tester</param>
             <param name="font-name">Noto Sans Mono</param>
             <param name="font-size">18</param>
+          </connection>
+          <connection name="no-paste">
+            <protocol>ssh</protocol>
+            <param name="hostname">ssh-target</param>
+            <param name="username">tester</param>
+            <param name="password">tester</param>
+            <param name="disable-paste">true</param>
           </connection>
         </authorize>
       </user-mapping>
