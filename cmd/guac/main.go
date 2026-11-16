@@ -53,7 +53,8 @@ part of the scrollback on the screen.
 Pastes TEXT into the terminal: Ctrl+C first, to clear the line or stop what
 runs, then the text, then Enter. The words of TEXT are joined with spaces.
 Without TEXT, or with -, the text comes from stdin, without its last newline.
-Text with newlines runs as several lines.
+Text with newlines runs as several lines. A tab goes as Ctrl+V Tab, so the
+shell inserts it instead of completing a word.
 
 send prints nothing and does not wait for output; run guac screen for that.
 Flags go before TEXT.
