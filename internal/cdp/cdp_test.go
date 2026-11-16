@@ -104,7 +104,7 @@ func TestTabsAndEval(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []Tab{{1, "a", "One", "http://one/"}, {2, "d", "Two", "http://two/#/client/x"}}
+	want := []Tab{{1, "a", "http://one/"}, {2, "d", "http://two/#/client/x"}}
 	if len(tabs) != 2 || tabs[0] != want[0] || tabs[1] != want[1] {
 		t.Fatalf("Tabs = %+v, want %+v", tabs, want)
 	}

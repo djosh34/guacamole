@@ -138,7 +138,11 @@ func Screen(ctx context.Context, c *cdp.Conn, s Session) (string, error) {
 		// Click once to clear the highlight.
 		err = sleep(ctx, clickGap)
 		if err == nil {
-			err = s.run(ctx, c, "clear", nil)
+			var cleared struct{ Error string }
+			err = s.run(ctx, c, "clear", &cleared)
+			if err == nil && cleared.Error != "" {
+				err = errors.New(cleared.Error)
+			}
 		}
 		// A copy that the click causes still lands in our handler.
 		if err == nil {

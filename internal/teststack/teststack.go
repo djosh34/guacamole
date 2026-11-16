@@ -50,13 +50,8 @@ func stateDir(root string) string { return filepath.Join(root, ".teststack") }
 
 // Compose runs docker compose on the stack's project and returns its output.
 func Compose(ctx context.Context, root string, stdin []byte, args ...string) ([]byte, error) {
-	return compose(ctx, root, nil, stdin, args...)
-}
-
-func compose(ctx context.Context, root string, env []string, stdin []byte, args ...string) ([]byte, error) {
 	args = append([]string{"compose", "-p", project(root), "-f", filepath.Join(root, "teststack", "compose.yaml")}, args...)
 	cmd := exec.CommandContext(ctx, "docker", args...)
-	cmd.Env = append(os.Environ(), env...)
 	cmd.Stdin = bytes.NewReader(stdin)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -67,17 +62,13 @@ func compose(ctx context.Context, root string, env []string, stdin []byte, args 
 	return out, nil
 }
 
-// Up starts the stack with Guacamole version (empty for the default) and a
-// headless Chromium, and waits until both answer.
-func Up(ctx context.Context, root, version string) (*Stack, error) {
-	var env []string
-	if version != "" {
-		env = append(env, "GUAC_VERSION="+version)
-	}
+// Up starts the stack and a headless Chromium, and waits until both answer.
+// $GUAC_VERSION picks the Guacamole version (default 1.6.0).
+func Up(ctx context.Context, root string) (*Stack, error) {
 	// No --build: every build gets a new image ID, and compose would then
 	// recreate the SSH target and end the open sessions. Down removes the
 	// image, so the next Up builds it again.
-	if _, err := compose(ctx, root, env, nil, "up", "-d"); err != nil {
+	if _, err := Compose(ctx, root, nil, "up", "-d"); err != nil {
 		return nil, err
 	}
 	addr, err := Compose(ctx, root, nil, "port", "guacamole", "8080")
@@ -242,10 +233,10 @@ func stopChromium(root string) error {
 	return os.Remove(filepath.Join(stateDir(root), "chromium.pid"))
 }
 
-// View is the size and zoom of the browser tab. Zero values keep Chromium's
-// default.
+// View is the window size and page zoom of the browser tab. Zero values keep
+// Chromium's default.
 type View struct {
-	Width, Height int     // CSS pixels
+	Width, Height int     // window size in screen pixels
 	Zoom          float64 // 1.25 is a page zoom of 125%
 }
 
@@ -328,12 +319,17 @@ func (t *Tab) open(ctx context.Context, guacURL, connection string, view View) e
 		return err
 	}
 	if view.Width > 0 {
-		scale := view.Zoom
-		if scale == 0 {
-			scale = 1
+		zoom := view.Zoom
+		if zoom == 0 {
+			zoom = 1
 		}
+		// Page zoom is what this emulates: the page sees a window that is
+		// zoom times smaller in CSS pixels, with zoom device pixels for each.
 		err := t.Conn.Call(ctx, t.Session, "Emulation.setDeviceMetricsOverride", map[string]any{
-			"width": view.Width, "height": view.Height, "deviceScaleFactor": scale, "mobile": false,
+			"width":             int(float64(view.Width) / zoom),
+			"height":            int(float64(view.Height) / zoom),
+			"deviceScaleFactor": zoom,
+			"mobile":            false,
 		}, nil)
 		if err != nil {
 			return err
@@ -375,7 +371,7 @@ func (t *Tab) open(ctx context.Context, guacURL, connection string, view View) e
 		return err
 	}
 	err = t.WaitJS(ctx, "connected session", `(() => {
-		const m = angular.element(document.documentElement).injector().get('guacClientManager').getManagedClients()['`+id+`'];
+		const m = `+managedClientJS+`;
 		return m && m.clientState.connectionState === 'CONNECTED' && m.client.getDisplay().getWidth() > 0;
 	})()`, 60*time.Second)
 	if err != nil {
@@ -393,6 +389,10 @@ func (t *Tab) navigate(ctx context.Context, url string) error {
 	return t.Conn.Call(ctx, t.Session, "Page.navigate", map[string]any{"url": url}, nil)
 }
 
+// managedClientJS is JavaScript for the ManagedClient that the tab shows.
+const managedClientJS = `Object.values(angular.element(document.documentElement).injector().get('guacClientManager').getManagedClients())
+	.find(m => location.hash.includes(m.id))`
+
 // Type types text into the session as key presses. A newline is Enter.
 func (t *Tab) Type(ctx context.Context, text string) error {
 	var keysyms []int
@@ -407,17 +407,15 @@ func (t *Tab) Type(ctx context.Context, text string) error {
 		}
 	}
 	return t.Eval(ctx, fmt.Sprintf(`(() => {
-		const c = Object.values(angular.element(document.documentElement).injector().get('guacClientManager').getManagedClients())
-			.find(m => location.hash.includes(m.id)).client;
+		const c = %s.client;
 		for (const k of %s) { c.sendKeyEvent(1, k); c.sendKeyEvent(0, k); }
-	})()`, intsJS(keysyms)), nil)
+	})()`, managedClientJS, intsJS(keysyms)), nil)
 }
 
 // CtrlC sends Ctrl+C.
 func (t *Tab) CtrlC(ctx context.Context) error {
 	return t.Eval(ctx, `(() => {
-		const c = Object.values(angular.element(document.documentElement).injector().get('guacClientManager').getManagedClients())
-			.find(m => location.hash.includes(m.id)).client;
+		const c = `+managedClientJS+`.client;
 		c.sendKeyEvent(1, 0xffe3); c.sendKeyEvent(1, 0x63); c.sendKeyEvent(0, 0x63); c.sendKeyEvent(0, 0xffe3);
 	})()`, nil)
 }
@@ -430,11 +428,9 @@ func (t *Tab) Wheel(ctx context.Context, steps int) error {
 		button, steps = 16, -steps
 	}
 	return t.Eval(ctx, fmt.Sprintf(`(() => {
-		const m = Object.values(angular.element(document.documentElement).injector().get('guacClientManager').getManagedClients())
-			.find(m => location.hash.includes(m.id));
-		const x = 100, y = 100;
-		for (let i = 0; i < %d; i++) { m.tunnel.sendMessage('mouse', x, y, %d); m.tunnel.sendMessage('mouse', x, y, 0); }
-	})()`, steps, button), nil)
+		const m = %s;
+		for (let i = 0; i < %d; i++) { m.tunnel.sendMessage('mouse', 100, 100, %d); m.tunnel.sendMessage('mouse', 100, 100, 0); }
+	})()`, managedClientJS, steps, button), nil)
 }
 
 func intsJS(v []int) string {

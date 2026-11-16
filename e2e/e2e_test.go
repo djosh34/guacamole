@@ -64,7 +64,7 @@ func run(m *testing.M) int {
 	if version == "" {
 		version = "1.6.0"
 	}
-	stack, err = teststack.Up(ctx, root, version)
+	stack, err = teststack.Up(ctx, root)
 	if os.Getenv("KEEP_STACK") == "" {
 		defer func() {
 			if err := teststack.Down(context.Background(), root); err != nil {
@@ -193,8 +193,8 @@ var views = []struct {
 	{"dejavu-10", teststack.View{}},
 	// Leaves part of a row and a column over at the edges.
 	{"liberation-14", teststack.View{Width: 1111, Height: 677}},
-	{"noto-18", teststack.View{Width: 1024, Height: 640, Zoom: 1.25}},
-	{"default", teststack.View{Width: 900, Height: 500, Zoom: 1.25}},
+	{"noto-18", teststack.View{Width: 1280, Height: 800, Zoom: 1.25}},
+	{"default", teststack.View{Width: 1100, Height: 620, Zoom: 1.25}},
 }
 
 func TestScreen(t *testing.T) {
@@ -252,7 +252,11 @@ func testScreen(t *testing.T, connection string, view teststack.View) {
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	t.Logf("terminal %d rows, %d columns", height, width)
+	var page string
+	if err := tab.Eval(context.Background(), "innerWidth + 'x' + innerHeight + ' CSS px, devicePixelRatio ' + devicePixelRatio", &page); err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("page %s; terminal %d rows, %d columns", page, height, width)
 
 	out, _, code := guac(t, "sessions")
 	if code != 0 || !strings.Contains(out, " connected ") || !strings.Contains(out, connection) {
@@ -263,7 +267,7 @@ func testScreen(t *testing.T, connection string, view teststack.View) {
 	// seventh line is long and wraps, and the last one wraps too.
 	var lines []string
 	for i := 1; i <= 1300; i++ {
-		line := fmt.Sprintf("L%04d café über straße → %d", i, i*i)
+		line := fmt.Sprintf("L%04d café über straße → 𐐀𝄞 %d", i, i*i)
 		if i%7 == 0 || i == 1300 {
 			for len([]rune(line)) < 2*width+5 {
 				line += fmt.Sprintf(" word%d", len(line))
@@ -338,8 +342,9 @@ func testScreen(t *testing.T, connection string, view teststack.View) {
 	// A log stream that never ends. Each screen shows whole log lines in
 	// order, then Ctrl+C stops the stream.
 	typeText(t, tab, "clear; logstream 0.05\n")
-	// Wait until the stream has scrolled the command line off the screen.
-	if got, ok := eventually(t, func(s string) bool { return strings.Count(s, " tick seq=") >= height }); !ok {
+	// Wait until the stream fills the screen: log lines on every row but the
+	// cursor row at the bottom.
+	if got, ok := eventually(t, func(s string) bool { return strings.Count(s, " tick seq=") >= height-1 }); !ok {
 		t.Fatalf("the log stream did not fill the screen:\n%s", got)
 	}
 	logLine := regexp.MustCompile(`^\d\d:\d\d:\d\d (INFO|WARN) worker\[\d\]: tick seq=(\d{6}) queue=\d+$`)

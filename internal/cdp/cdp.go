@@ -37,7 +37,6 @@ type reply struct {
 type Tab struct {
 	Number int
 	ID     string
-	Title  string
 	URL    string
 }
 
@@ -97,20 +96,18 @@ func (c *Conn) read() {
 	for {
 		_, data, err := c.ws.Read(context.Background())
 		if err != nil {
-			c.mu.Lock()
-			c.err = fmt.Errorf("browser connection lost: %w", err)
-			for id, ch := range c.pending {
-				close(ch)
-				delete(c.pending, id)
-			}
-			c.mu.Unlock()
+			c.fail(fmt.Errorf("browser connection lost: %w", err))
 			return
 		}
 		var msg struct {
 			ID int64 `json:"id"`
 			reply
 		}
-		if json.Unmarshal(data, &msg) != nil || msg.ID == 0 {
+		if err := json.Unmarshal(data, &msg); err != nil {
+			c.fail(fmt.Errorf("bad message from the browser: %w", err))
+			return
+		}
+		if msg.ID == 0 {
 			continue // an event; nothing here listens to events
 		}
 		c.mu.Lock()
@@ -123,9 +120,20 @@ func (c *Conn) read() {
 	}
 }
 
+// fail ends all calls that wait with err.
+func (c *Conn) fail(err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.err = err
+	for id, ch := range c.pending {
+		close(ch)
+		delete(c.pending, id)
+	}
+}
+
 // Close closes the connection. Tabs stay open.
 func (c *Conn) Close() error {
-	err := c.ws.Close(websocket.StatusNormalClosure, "")
+	err := c.ws.CloseNow()
 	<-c.done
 	return err
 }
@@ -187,7 +195,6 @@ func (c *Conn) Tabs(ctx context.Context) ([]Tab, error) {
 		TargetInfos []struct {
 			TargetID string `json:"targetId"`
 			Type     string `json:"type"`
-			Title    string `json:"title"`
 			URL      string `json:"url"`
 		} `json:"targetInfos"`
 	}
@@ -199,7 +206,7 @@ func (c *Conn) Tabs(ctx context.Context) ([]Tab, error) {
 		if t.Type != "page" || internalURL(t.URL) {
 			continue
 		}
-		tabs = append(tabs, Tab{Number: len(tabs) + 1, ID: t.TargetID, Title: t.Title, URL: t.URL})
+		tabs = append(tabs, Tab{Number: len(tabs) + 1, ID: t.TargetID, URL: t.URL})
 	}
 	return tabs, nil
 }

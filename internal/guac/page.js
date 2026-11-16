@@ -59,13 +59,16 @@ async function guac(op) {
     const display = client.getDisplay();
     const mouse = (x, y, buttons) => mc.tunnel.sendMessage('mouse', x, y, buttons);
 
-    const copied = waitEvent(5000);
+    const copied = waitEvent(3000);
     const onclipboard = client.onclipboard;
     client.onclipboard = (stream) => {
-      const reader = new Guacamole.StringReader(stream);
+      // Guacamole.StringReader breaks characters outside the BMP, such as
+      // emoji, so decode the UTF-8 bytes here.
+      const reader = new Guacamole.ArrayBufferReader(stream);
+      const utf8 = new TextDecoder();
       let text = '';
-      reader.ontext = (t) => { text += t; };
-      reader.onend = () => copied.poke({ text });
+      reader.ondata = (data) => { text += utf8.decode(data, { stream: true }); };
+      reader.onend = () => copied.poke({ text: text + utf8.decode() });
     };
     const restore = () => { client.onclipboard = onclipboard; };
     st.restore = restore;
@@ -74,7 +77,7 @@ async function guac(op) {
 
     // guacd draws the selection highlight as rects on its selection layer and
     // fills them with a translucent color. Catch the first such fill.
-    const drawn = waitEvent(5000);
+    const drawn = waitEvent(3000);
     const paths = new Map();
     const rect = display.rect;
     const fillColor = display.fillColor;
@@ -133,10 +136,6 @@ async function guac(op) {
     return { state: String(mc.clientState.connectionState).toLowerCase(), name: mc.name || mc.title || '' };
   }
   if (!mc) return { error: 'this tab shows no Guacamole session' };
-  const state = mc.clientState.connectionState;
-  if (state === 'DISCONNECTED' || state === 'CLIENT_ERROR' || state === 'TUNNEL_ERROR') {
-    return { error: dialog() || 'the session is ' + state.toLowerCase().replace('_', ' ') };
-  }
   if (op === 'copy') return copy(mc);
   if (op === 'clear') {
     // One click clears the highlight.

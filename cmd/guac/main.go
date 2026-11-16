@@ -113,7 +113,7 @@ func parse(args []string) (options, string, error) {
 	return o, cmd, nil
 }
 
-func run(args []string, stdout io.Writer) error {
+func run(args []string, stdout io.Writer) (err error) {
 	o, cmd, err := parse(args)
 	if err != nil {
 		return err
@@ -132,7 +132,11 @@ func run(args []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	defer c.Close()
+	defer func() {
+		if cerr := c.Close(); err == nil {
+			err = cerr
+		}
+	}()
 
 	switch cmd {
 	case "sessions":
