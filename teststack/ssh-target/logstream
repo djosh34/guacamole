@@ -1,0 +1,11 @@
+#!/bin/bash
+# Prints log lines forever, like kubectl logs -f or journalctl -f.
+# logstream [SECONDS_BETWEEN_LINES]
+n=0
+while :; do
+  n=$((n + 1))
+  level=INFO
+  [ $((n % 10)) = 0 ] && level=WARN
+  printf '%s %s worker[%d]: tick seq=%06d queue=%d\n' "$(date -u +%H:%M:%S)" "$level" $((n % 4)) "$n" $((n * 7 % 97))
+  sleep "${1:-0.2}"
+done
