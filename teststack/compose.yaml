@@ -3,7 +3,7 @@
 # several stacks run on one host. Host ports are random; read them with
 # `docker compose port guacamole 8080`.
 #
-#   GUAC_VERSION=1.6.0 docker compose -p mystack -f teststack/compose.yaml up -d --build
+#   GUAC_VERSION=1.6.0 docker compose -p mystack -f teststack/compose.yaml up -d
 #
 # Login guacuser / guacpass. Each connection uses a different font.
 

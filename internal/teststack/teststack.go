@@ -73,7 +73,10 @@ func Up(ctx context.Context, root, version string) (*Stack, error) {
 	if version != "" {
 		env = append(env, "GUAC_VERSION="+version)
 	}
-	if _, err := compose(ctx, root, env, nil, "up", "-d", "--build"); err != nil {
+	// No --build: every build gets a new image ID, and compose would then
+	// recreate the SSH target and end the open sessions. Down removes the
+	// image, so the next Up builds it again.
+	if _, err := compose(ctx, root, env, nil, "up", "-d"); err != nil {
 		return nil, err
 	}
 	addr, err := Compose(ctx, root, nil, "port", "guacamole", "8080")
@@ -90,10 +93,11 @@ func Up(ctx context.Context, root, version string) (*Stack, error) {
 	return s, nil
 }
 
-// Down stops the Chromium and removes the stack with its volumes.
+// Down stops the Chromium and removes the stack with its volumes and the
+// SSH target image.
 func Down(ctx context.Context, root string) error {
 	stopErr := stopChromium(root)
-	_, err := Compose(ctx, root, nil, "down", "-v", "--remove-orphans")
+	_, err := Compose(ctx, root, nil, "down", "-v", "--rmi", "local", "--remove-orphans")
 	return errors.Join(stopErr, err)
 }
 
