@@ -1,11 +1,11 @@
-// Runs inside the Guacamole tab. Go calls it as (this function)(op) and gets
-// back a plain value. It reaches the page's Guacamole.Client through the
+// Runs inside the Guacamole tab. Go calls it as (this function)(op, arg) and
+// gets back a plain value. It reaches the page's Guacamole.Client through the
 // AngularJS service guacClientManager, which Guacamole 1.4 to 1.6 all have.
 //
 // Chrome runs timers in a background tab at most once a second, so waits
 // that must be short happen in Go between calls. The page side only waits
 // for events from guacd.
-async function guac(op) {
+async function guac(op, arg) {
   // The client shown by this tab, or null when the tab shows none.
   function managedClient() {
     const ng = window.angular;
@@ -42,7 +42,8 @@ async function guac(op) {
   }
 
   // Our state between calls: the mouse position of the drag end, the time of
-  // our last click and the function that gives the clipboard back.
+  // our last click, the function that gives the clipboard back and the
+  // frames drawn since the last keys.
   const st = (window.__guac = window.__guac || { lastClick: 0 });
 
   function giveBackClipboard() {
@@ -76,7 +77,9 @@ async function guac(op) {
     setTimeout(() => st.restore === restore && giveBackClipboard(), 5000);
 
     // guacd draws the selection highlight as rects on its selection layer and
-    // fills them with a translucent color. Catch the first such fill.
+    // fills them with a translucent color. Catch the first such fill that is
+    // as wide as the drag below. The scrollbar handle is translucent too, and
+    // guacd redraws it while output comes in.
     const drawn = waitEvent(3000);
     const paths = new Map();
     const rect = display.rect;
@@ -89,7 +92,7 @@ async function guac(op) {
     display.fillColor = function (layer, r, g, b, a) {
       const path = paths.get(layer) || [];
       paths.delete(layer);
-      if (a > 0 && a < 255 && path.length) drawn.poke({ layer, rects: path });
+      if (a > 0 && a < 255 && path.length && path[0].w >= display.getWidth() / 4) drawn.poke({ layer, rects: path });
       return fillColor.apply(this, arguments);
     };
 
@@ -127,15 +130,82 @@ async function guac(op) {
     return got;
   }
 
+  // Resolves with '' once guacd has handled every instruction sent before,
+  // or with an error. guacd answers a pipe stream it does not know with an
+  // error ack right away, in order with the other instructions, and sends
+  // nothing for keys or a clipboard stream that work.
+  function sync(mc) {
+    const answered = waitEvent(5000);
+    const stream = mc.client.createPipeStream('text/plain', 'guac-sync');
+    stream.onack = () => {
+      stream.sendEnd();
+      answered.poke('answered');
+    };
+    return answered.promise.then((v) => (v ? '' : dialog() || 'guacd did not answer'));
+  }
+
+  // Counts the frames guacd draws from now on, for 'frames'.
+  function countFrames(client) {
+    st.frames = 0;
+    if (client.__guacCounts) return;
+    client.__guacCounts = true;
+    const onsync = client.onsync;
+    client.onsync = function () {
+      st.frames++;
+      return onsync && onsync.apply(this, arguments);
+    };
+  }
+
+  // Sends key events: [pressed, keysym] pairs.
+  async function keys(mc, events) {
+    countFrames(mc.client);
+    for (const [pressed, keysym] of events) mc.client.sendKeyEvent(pressed ? 1 : 0, keysym);
+    const err = await sync(mc);
+    return err ? { error: err } : {};
+  }
+
+  // Puts text on guacd's clipboard as UTF-8. Guacamole.StringWriter would
+  // break characters outside the BMP, such as emoji. The stream ends only
+  // after sync: ending it makes Guacamole.Client drop the stream, and with it
+  // an error ack that is still on its way.
+  async function clipboard(mc, text) {
+    const stream = mc.client.createClipboardStream('text/plain');
+    const writer = new Guacamole.ArrayBufferWriter(stream);
+    let refused = '';
+    writer.onack = (status) => {
+      if (status.isError()) refused = refused || status.message || 'error ' + status.code;
+    };
+    writer.sendData(new TextEncoder().encode(text));
+    const err = await sync(mc);
+    if (err) return { error: err };
+    if (refused) return { error: 'guacd refused the pasted text: ' + refused };
+    writer.sendEnd();
+    return {};
+  }
+
+  // Clicks Reconnect in Guacamole's disconnect dialog.
+  function reconnect() {
+    const button = document.querySelector('.client-status-modal button.reconnect');
+    if (!button || button.offsetParent === null) {
+      return { error: dialog() || 'the page shows no Reconnect button' };
+    }
+    button.click();
+    return {};
+  }
+
   if (op === 'idle') return Date.now() - st.lastClick;
+  if (op === 'frames') return st.frames || 0;
   if (op === 'restore') return giveBackClipboard() || {};
 
   const mc = managedClient();
   if (op === 'session') {
     if (!mc) return null;
-    return { state: String(mc.clientState.connectionState).toLowerCase(), name: mc.name || mc.title || '' };
+    return { state: String(mc.clientState.connectionState).toLowerCase(), name: mc.name || mc.title || '', dialog: dialog() };
   }
+  if (op === 'reconnect') return reconnect();
   if (!mc) return { error: 'this tab shows no Guacamole session' };
+  if (op === 'keys') return keys(mc, arg);
+  if (op === 'clipboard') return clipboard(mc, arg);
   if (op === 'copy') return copy(mc);
   if (op === 'clear') {
     // One click clears the highlight.
