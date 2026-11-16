@@ -1,0 +1,64 @@
+# Guacamole test stack: guacd, the Guacamole web app (file auth via
+# user-mapping.xml, no database) and an SSH target.
+# Settings come from .env. Change a value there and run `docker compose up -d`.
+name: guactest
+
+services:
+  guacd:
+    image: ${GUACD_IMAGE:-guacamole/guacd}:${GUAC_VERSION:-1.6.0}
+    restart: unless-stopped
+    environment:
+      GUACD_LOG_LEVEL: ${GUACD_LOG_LEVEL:-info}
+
+  guacamole:
+    image: ${GUACAMOLE_IMAGE:-guacamole/guacamole}:${GUAC_VERSION:-1.6.0}
+    restart: unless-stopped
+    depends_on: [guacd, ssh-target]
+    environment:
+      GUACD_HOSTNAME: guacd
+      GUACD_PORT: "4822"
+      # Serve at /guacamole/ (the image default). Set ROOT to serve at /.
+      WEBAPP_CONTEXT: ${WEBAPP_CONTEXT:-guacamole}
+    configs:
+      - source: user-mapping
+        target: /etc/guacamole/user-mapping.xml
+    ports:
+      - "127.0.0.1:${GUAC_HTTP_PORT:-47880}:8080"
+
+  ssh-target:
+    build: ./ssh-target
+    image: guactest-ssh-target:local
+    restart: unless-stopped
+    hostname: ssh-target
+    ports:
+      # Only for debugging from the host: ssh -p 47822 tester@127.0.0.1
+      - "127.0.0.1:${SSH_HOST_PORT:-47822}:22"
+
+configs:
+  user-mapping:
+    # Empty parameter values mean "use guacd's default".
+    # Parameter reference: https://guacamole.apache.org/doc/1.6.0/gug/configuring-guacamole.html#ssh
+    content: |
+      <user-mapping>
+        <authorize username="${GUAC_USER:-guacuser}" password="${GUAC_PASSWORD:-guacpass}">
+          <connection name="${SSH_CONNECTION_NAME:-ssh-target}">
+            <protocol>ssh</protocol>
+            <param name="hostname">ssh-target</param>
+            <param name="port">22</param>
+            <param name="username">${SSH_USER:-tester}</param>
+            <param name="password">${SSH_PASSWORD:-tester}</param>
+            <param name="font-name">${SSH_FONT_NAME:-}</param>
+            <param name="font-size">${SSH_FONT_SIZE:-}</param>
+            <param name="color-scheme">${SSH_COLOR_SCHEME:-}</param>
+            <param name="scrollback">${SSH_SCROLLBACK:-}</param>
+            <param name="terminal-type">${SSH_TERMINAL_TYPE:-}</param>
+            <param name="backspace">${SSH_BACKSPACE:-}</param>
+            <param name="locale">${SSH_LOCALE:-}</param>
+            <param name="timezone">${SSH_TIMEZONE:-}</param>
+            <param name="read-only">${SSH_READ_ONLY:-}</param>
+            <param name="disable-copy">${SSH_DISABLE_COPY:-}</param>
+            <param name="disable-paste">${SSH_DISABLE_PASTE:-}</param>
+            <param name="server-alive-interval">${SSH_SERVER_ALIVE_INTERVAL:-}</param>
+          </connection>
+        </authorize>
+      </user-mapping>

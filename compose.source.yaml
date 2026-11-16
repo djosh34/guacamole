@@ -1,0 +1,26 @@
+# Override for Guacamole versions without arm64 images (everything before
+# 1.6.0). Builds guacd from the upstream git tag with SSH support only and
+# runs the release WAR on Tomcat 9.
+#
+#   GUAC_VERSION=1.5.5 docker compose -f compose.yaml -f compose.source.yaml up -d --build
+#
+# WEBAPP_CONTEXT has no effect here; the app is always at /guacamole/.
+services:
+  guacd:
+    image: guactest-guacd:${GUAC_VERSION}
+    build:
+      context: https://github.com/apache/guacamole-server.git#${GUAC_VERSION}
+      args:
+        # 1.5.x needs openssl1.1-compat, which Alpine dropped after 3.18.
+        ALPINE_BASE_IMAGE: ${GUACD_ALPINE:-3.18}
+        WITH_FREERDP: "NO"
+        WITH_LIBTELNET: "NO"
+        WITH_LIBVNCCLIENT: "NO"
+        WITH_LIBWEBSOCKETS: "NO"
+
+  guacamole:
+    image: guactest-guacamole:${GUAC_VERSION}
+    build:
+      context: ./webapp-from-war
+      args:
+        GUAC_VERSION: ${GUAC_VERSION}
