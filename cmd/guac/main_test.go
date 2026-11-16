@@ -99,7 +99,7 @@ func TestSendText(t *testing.T) {
 		{[]string{"echo", "a  b"}, "ignored", "echo a  b"},
 		{nil, "ls\n", "ls"},
 		{[]string{"-"}, "a\nb\n\n", "a\nb\n"},
-		{nil, "dir\r\n", "dir"},
+		{nil, "dir\r\n", "dir\r"},
 		{nil, "no newline", "no newline"},
 		{[]string{"-", "-"}, "ignored", "- -"},
 		{[]string{""}, "ignored", ""},

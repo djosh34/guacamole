@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -189,7 +190,7 @@ func Send(ctx context.Context, c *cdp.Conn, s Session, text string, clear, enter
 			return err
 		}
 	}
-	keys := pasteKeys
+	keys := slices.Clone(pasteKeys)
 	if enter {
 		keys = append(keys, enterKey...)
 	}

@@ -118,6 +118,9 @@ type options struct {
 	noClear  bool // send
 	noEnter  bool // send
 	args     []string
+	keys     []guac.KeyEvent // key
+	up       bool            // scroll
+	screens  int             // scroll
 }
 
 func flags(o *options, cmd string) *flag.FlagSet {
@@ -171,11 +174,13 @@ func parse(args []string) (options, string, error) {
 		if len(o.args) == 0 {
 			return o, "", usageError{"key needs a key, such as enter or ctrl+c"}
 		}
-		if _, err := guac.Keys(o.args...); err != nil {
+		var err error
+		if o.keys, err = guac.Keys(o.args...); err != nil {
 			return o, "", usageError{err.Error()}
 		}
 	case "scroll":
-		if _, _, err := scrollArgs(o.args); err != nil {
+		var err error
+		if o.up, o.screens, err = scrollArgs(o.args); err != nil {
 			return o, "", err
 		}
 	default:
@@ -211,8 +216,7 @@ func sendText(args []string, stdin io.Reader) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("read stdin: %w", err)
 	}
-	text := strings.TrimSuffix(string(data), "\n")
-	return strings.TrimSuffix(text, "\r"), nil
+	return strings.TrimSuffix(string(data), "\n"), nil
 }
 
 func run(args []string, stdin io.Reader, stdout io.Writer) (err error) {
@@ -271,17 +275,9 @@ func run(args []string, stdin io.Reader, stdout io.Writer) (err error) {
 	case "send":
 		return guac.Send(ctx, c, s, text, !o.noClear, !o.noEnter)
 	case "key":
-		keys, err := guac.Keys(o.args...)
-		if err != nil {
-			return err
-		}
-		return guac.Press(ctx, c, s, keys)
+		return guac.Press(ctx, c, s, o.keys)
 	case "scroll":
-		up, n, err := scrollArgs(o.args)
-		if err != nil {
-			return err
-		}
-		return guac.Scroll(ctx, c, s, up, n)
+		return guac.Scroll(ctx, c, s, o.up, o.screens)
 	case "reconnect":
 		return guac.Reconnect(ctx, c, s)
 	}
