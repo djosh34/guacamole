@@ -179,19 +179,49 @@ func Send(ctx context.Context, c *cdp.Conn, s Session, text string, clear, enter
 	if err := s.do(ctx, c, "clipboard", text); err != nil {
 		return err
 	}
-	var keys []KeyEvent
 	if clear {
-		keys = append(keys, ctrlC...)
+		if err := Press(ctx, c, s, ctrlC); err != nil {
+			return err
+		}
+		// Text that comes right after Ctrl+C can lose its first character,
+		// while the shell handles the interrupt.
+		if err := s.settle(ctx, c); err != nil {
+			return err
+		}
 	}
-	keys = append(keys, pasteKeys...)
+	keys := pasteKeys
 	if enter {
 		keys = append(keys, enterKey...)
 	}
 	return Press(ctx, c, s, keys)
 }
 
+// settle waits until the terminal has answered the last keys: until it has
+// drawn something and then nothing for 150 ms. A program can ignore the keys
+// and print nothing, so settle waits at most a second.
+func (s Session) settle(ctx context.Context, c *cdp.Conn) error {
+	start := time.Now()
+	quiet := start
+	last := 0
+	for time.Since(start) < time.Second {
+		var frames int
+		if err := s.run(ctx, c, "frames", nil, &frames); err != nil {
+			return err
+		}
+		if frames != last {
+			last, quiet = frames, time.Now()
+		} else if frames > 0 && time.Since(quiet) >= 150*time.Millisecond {
+			return nil
+		}
+		if err := sleep(ctx, 20*time.Millisecond); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // Scroll scrolls the terminal by pages screens: up into the scrollback, or
-// down. Typing scrolls back to the bottom.
+// down. Any key but paste scrolls back to the bottom.
 func Scroll(ctx context.Context, c *cdp.Conn, s Session, up bool, pages int) error {
 	page := pageDown
 	if up {

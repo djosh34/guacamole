@@ -42,7 +42,8 @@ async function guac(op, arg) {
   }
 
   // Our state between calls: the mouse position of the drag end, the time of
-  // our last click and the function that gives the clipboard back.
+  // our last click, the function that gives the clipboard back and the
+  // frames drawn since the last keys.
   const st = (window.__guac = window.__guac || { lastClick: 0 });
 
   function giveBackClipboard() {
@@ -76,7 +77,9 @@ async function guac(op, arg) {
     setTimeout(() => st.restore === restore && giveBackClipboard(), 5000);
 
     // guacd draws the selection highlight as rects on its selection layer and
-    // fills them with a translucent color. Catch the first such fill.
+    // fills them with a translucent color. Catch the first such fill that is
+    // as wide as the drag below. The scrollbar handle is translucent too, and
+    // guacd redraws it while output comes in.
     const drawn = waitEvent(3000);
     const paths = new Map();
     const rect = display.rect;
@@ -89,7 +92,7 @@ async function guac(op, arg) {
     display.fillColor = function (layer, r, g, b, a) {
       const path = paths.get(layer) || [];
       paths.delete(layer);
-      if (a > 0 && a < 255 && path.length) drawn.poke({ layer, rects: path });
+      if (a > 0 && a < 255 && path.length && path[0].w >= display.getWidth() / 4) drawn.poke({ layer, rects: path });
       return fillColor.apply(this, arguments);
     };
 
@@ -141,8 +144,21 @@ async function guac(op, arg) {
     return answered.promise.then((v) => (v ? '' : dialog() || 'guacd did not answer'));
   }
 
+  // Counts the frames guacd draws from now on, for 'frames'.
+  function countFrames(client) {
+    st.frames = 0;
+    if (client.__guacCounts) return;
+    client.__guacCounts = true;
+    const onsync = client.onsync;
+    client.onsync = function () {
+      st.frames++;
+      return onsync && onsync.apply(this, arguments);
+    };
+  }
+
   // Sends key events: [pressed, keysym] pairs.
   async function keys(mc, events) {
+    countFrames(mc.client);
     for (const [pressed, keysym] of events) mc.client.sendKeyEvent(pressed ? 1 : 0, keysym);
     const err = await sync(mc);
     return err ? { error: err } : {};
@@ -171,13 +187,14 @@ async function guac(op, arg) {
   function reconnect() {
     const button = document.querySelector('.client-status-modal button.reconnect');
     if (!button || button.offsetParent === null) {
-      return { error: dialog() || 'the tab shows no disconnect dialog with a Reconnect button' };
+      return { error: dialog() || 'the page shows no Reconnect button' };
     }
     button.click();
     return {};
   }
 
   if (op === 'idle') return Date.now() - st.lastClick;
+  if (op === 'frames') return st.frames || 0;
   if (op === 'restore') return giveBackClipboard() || {};
 
   const mc = managedClient();

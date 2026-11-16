@@ -86,8 +86,15 @@ func run(m *testing.M) int {
 // guac runs the guac binary against the stack's Chromium.
 func guac(t *testing.T, args ...string) (stdout, stderr string, code int) {
 	t.Helper()
+	return guacIn(t, "", args...)
+}
+
+// guacIn runs guac with stdin.
+func guacIn(t *testing.T, stdin string, args ...string) (stdout, stderr string, code int) {
+	t.Helper()
 	cmd := exec.Command(guacBin, args...)
 	cmd.Env = append(os.Environ(), "BROWSER_CDP_URL="+stack.CDPURL)
+	cmd.Stdin = strings.NewReader(stdin)
 	var out, errOut bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &out, &errOut
 	err := cmd.Run()
@@ -233,18 +240,16 @@ func wheel(t *testing.T, tab *teststack.Tab, steps int) {
 	}
 }
 
-func testScreen(t *testing.T, connection string, view teststack.View) {
-	tab := open(t, connection, view)
-	id := strconv.FormatInt(time.Now().UnixNano(), 36)
-
-	// The terminal size, as the shell sees it.
-	typeText(t, tab, "stty size > /tmp/size-"+id+"\n")
-	var height, width int
+// termSize returns the terminal size, as the shell sees it.
+func termSize(t *testing.T, tab *teststack.Tab) (height, width int) {
+	t.Helper()
+	file := "/tmp/size-" + strconv.FormatInt(time.Now().UnixNano(), 36)
+	typeText(t, tab, "stty size > "+file+"\n")
 	for end := time.Now().Add(10 * time.Second); ; {
-		out, err := teststack.Compose(context.Background(), stack.Root, nil, "exec", "-T", "ssh-target", "cat", "/tmp/size-"+id)
+		out, err := teststack.Compose(context.Background(), stack.Root, nil, "exec", "-T", "ssh-target", "cat", file)
 		if err == nil {
 			if _, err := fmt.Sscan(string(out), &height, &width); err == nil {
-				break
+				return height, width
 			}
 		}
 		if time.Now().After(end) {
@@ -252,6 +257,13 @@ func testScreen(t *testing.T, connection string, view teststack.View) {
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
+}
+
+func testScreen(t *testing.T, connection string, view teststack.View) {
+	tab := open(t, connection, view)
+	id := strconv.FormatInt(time.Now().UnixNano(), 36)
+
+	height, width := termSize(t, tab)
 	var page string
 	if err := tab.Eval(context.Background(), "innerWidth + 'x' + innerHeight + ' CSS px, devicePixelRatio ' + devicePixelRatio", &page); err != nil {
 		t.Fatal(err)

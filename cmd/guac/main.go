@@ -81,8 +81,8 @@ Examples:
 	"scroll": `usage: guac scroll up|down [N]
 
 Scrolls the terminal N screens (default 1) up into the scrollback or back
-down. guac screen then prints that part. Typing, send and key scroll back to
-the bottom.
+down. guac screen then prints that part. Any key, such as the Ctrl+C or
+Enter of guac send, scrolls back to the bottom.
 `,
 	"reconnect": `usage: guac reconnect [--endpoint URL] [--page N]
 
