@@ -81,6 +81,9 @@ func key(name string) ([]KeyEvent, error) {
 	if !ok {
 		r, size := utf8.DecodeRuneInString(rest)
 		if rest == "" || size != len(rest) || r == utf8.RuneError {
+			if len(mods) == 0 && utf8.RuneCountInString(rest) > 1 {
+				return nil, fmt.Errorf("unknown key %q; type text with guac send --no-clear --no-enter", name)
+			}
 			return nil, fmt.Errorf("unknown key %q", name)
 		}
 		k = charKeysym(r)
