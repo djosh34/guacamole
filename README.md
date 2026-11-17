@@ -30,9 +30,10 @@ Log in to Guacamole in that Chrome and open the SSH connection. Then:
 
     guac sessions                  # list the Guacamole tabs
     guac screen                    # print the text on the terminal screen
-    guac send kubectl get pods     # Ctrl+C, paste the command, Enter
+    guac send kubectl get pods     # paste the command, press Enter
+    guac send -c ls                # Ctrl+C first, to stop what runs
+    guac send y                    # answer a prompt
     guac key ctrl+c                # press keys
-    guac key y enter               # answer a prompt; send would Ctrl+C it
     guac scroll up                 # scroll one screen into the scrollback
     guac reconnect                 # click Reconnect after a disconnect
 

@@ -174,16 +174,16 @@ func Press(ctx context.Context, c *cdp.Conn, s Session, events []KeyEvent) error
 }
 
 // Send pastes text into the session: it puts the text on guacd's clipboard,
-// then presses Ctrl+C when clear is set, Ctrl+Shift+V, and Enter when enter
+// then presses Ctrl+C when interrupt is set, Ctrl+Shift+V, and Enter when enter
 // is set. When guacd refuses the text, Send presses no key.
-func Send(ctx context.Context, c *cdp.Conn, s Session, text string, clear, enter bool) error {
+func Send(ctx context.Context, c *cdp.Conn, s Session, text string, interrupt, enter bool) error {
 	// A tab would make the shell complete a word. Ctrl+V before it makes
 	// readline and the terminal take it as a plain tab.
 	text = strings.ReplaceAll(text, "\t", "\x16\t")
 	if err := s.do(ctx, c, "clipboard", text); err != nil {
 		return err
 	}
-	if clear {
+	if interrupt {
 		if err := Press(ctx, c, s, ctrlC); err != nil {
 			return err
 		}

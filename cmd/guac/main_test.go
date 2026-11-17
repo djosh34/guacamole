@@ -16,7 +16,7 @@ func TestParse(t *testing.T) {
 		page     int
 		help     bool
 		rest     []string
-		noClear  bool
+		ctrlC    bool
 		noEnter  bool
 		usage    string // part of the usage error, if any
 	}{
@@ -36,7 +36,10 @@ func TestParse(t *testing.T) {
 		{args: []string{"--nope"}, usage: "unknown flag --nope"},
 		{args: []string{"send", "--lines", "ls"}, usage: "unknown flag --lines"},
 		{args: []string{"screen", "--page"}, usage: "--page needs a value"},
-		{args: []string{"send", "--no-clear", "--no-enter", "ls", "-l"}, cmd: "send", rest: []string{"ls", "-l"}, noClear: true, noEnter: true},
+		{args: []string{"send", "-c", "--no-enter", "ls", "-l"}, cmd: "send", rest: []string{"ls", "-l"}, ctrlC: true, noEnter: true},
+		{args: []string{"send", "y"}, cmd: "send", rest: []string{"y"}},
+		{args: []string{"send", "--no-clear", "y"}, usage: "unknown flag --no-clear"},
+		{args: []string{"screen", "-c"}, usage: "unknown flag -c"},
 		{args: []string{"send"}, cmd: "send"},
 		{args: []string{"send", "ls", "--no-enter"}, cmd: "send", rest: []string{"ls", "--no-enter"}},
 		{args: []string{"screen", "--no-enter"}, usage: "no-enter"},
@@ -67,7 +70,7 @@ func TestParse(t *testing.T) {
 			continue
 		}
 		if cmd != tt.cmd || o.page != tt.page || o.help != tt.help || (tt.endpoint != "" && o.endpoint != tt.endpoint) ||
-			!slices.Equal(o.args, tt.rest) || o.noClear != tt.noClear || o.noEnter != tt.noEnter {
+			!slices.Equal(o.args, tt.rest) || o.ctrlC != tt.ctrlC || o.noEnter != tt.noEnter {
 			t.Errorf("parse(%q) = %+v, %q; want %+v", tt.args, o, cmd, tt)
 		}
 	}

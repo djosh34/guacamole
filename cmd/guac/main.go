@@ -48,25 +48,23 @@ Prints the text on the terminal screen: the text that a mouse drag over the
 whole terminal and copy give. When the terminal is scrolled up, that is the
 part of the scrollback on the screen.
 `,
-	"send": `usage: guac send [--no-clear] [--no-enter] [TEXT...]
+	"send": `usage: guac send [-c] [--no-enter] [TEXT...]
 
-Pastes TEXT into the terminal: Ctrl+C first, to clear the line or stop what
-runs, then the text, then Enter. The words of TEXT are joined with spaces.
-Without TEXT, or with -, the text comes from stdin, without its last newline.
-Text with newlines runs as several lines. A tab goes as Ctrl+V Tab, so the
-shell inserts it instead of completing a word.
+Pastes TEXT into the terminal and presses Enter. The words of TEXT are
+joined with spaces. Without TEXT, or with -, the text comes from stdin,
+without its last newline. Text with newlines runs as several lines. A tab
+goes as Ctrl+V Tab, so the shell inserts it instead of completing a word.
 
 send prints nothing and does not wait for output; run guac screen for that.
-Flags go before TEXT. At a prompt, Ctrl+C cancels it: answer with
-guac key y enter, or send --no-clear. Ctrl+C also sets $? to 130: read the
-status of the last command with guac send --no-clear 'echo $?'.
+Flags go before TEXT.
 
-  --no-clear  do not press Ctrl+C first
+  -c          press Ctrl+C first, to stop what runs or clear the line
   --no-enter  do not press Enter after
 
 Examples:
   guac send kubectl get pods
-  guac send --no-clear y
+  guac send -c ls        stop the running command, then run ls
+  guac send y            answer a prompt
   guac send < script.sh
 `,
 	"key": `usage: guac key KEY...
@@ -75,7 +73,7 @@ Presses keys in order. A key is a single character, sent as written, or one
 of these names: enter tab esc backspace delete up down left right home end
 pgup pgdn space f1 to f12. Put ctrl+, alt+ or shift+ in front for a
 modifier. Names ignore case. To type text, such as a search in less, use
-guac send --no-clear --no-enter.
+guac send --no-enter.
 
 Examples:
   guac key ctrl+c
@@ -85,8 +83,8 @@ Examples:
 	"scroll": `usage: guac scroll up|down [N]
 
 Scrolls the terminal N screens (default 1) up into the scrollback or back
-down. guac screen then prints that part. Any key, such as the Ctrl+C or
-Enter of guac send, scrolls back to the bottom.
+down. guac screen then prints that part. Any key, such as the Enter of
+guac send, scrolls back to the bottom.
 `,
 	"reconnect": `usage: guac reconnect [--endpoint URL] [--page N]
 
@@ -121,7 +119,7 @@ type options struct {
 	endpoint string
 	page     int
 	help     bool
-	noClear  bool // send
+	ctrlC    bool // send
 	noEnter  bool // send
 	args     []string
 	keys     []guac.KeyEvent // key
@@ -137,7 +135,7 @@ func flags(o *options, cmd string) *flag.FlagSet {
 	f.BoolVar(&o.help, "help", false, "")
 	f.BoolVar(&o.help, "h", false, "")
 	if cmd == "send" {
-		f.BoolVar(&o.noClear, "no-clear", false, "")
+		f.BoolVar(&o.ctrlC, "c", false, "")
 		f.BoolVar(&o.noEnter, "no-enter", false, "")
 	}
 	return f
@@ -201,7 +199,11 @@ func parse(args []string) (options, string, error) {
 func flagError(err error) usageError {
 	msg := err.Error()
 	if name, ok := strings.CutPrefix(msg, "flag provided but not defined: "); ok {
-		return usageError{"unknown flag -" + name}
+		// name has one dash: -c stays, -lines becomes --lines.
+		if len(name) > 2 {
+			name = "-" + name
+		}
+		return usageError{"unknown flag " + name}
 	}
 	if name, ok := strings.CutPrefix(msg, "flag needs an argument: -"); ok {
 		return usageError{fmt.Sprintf("--%s needs a value", name)}
@@ -309,7 +311,7 @@ func run(args []string, stdin io.Reader, stdout io.Writer) (err error) {
 		_, err = io.WriteString(stdout, screenText(text))
 		return err
 	case "send":
-		return guac.Send(ctx, c, s, text, !o.noClear, !o.noEnter)
+		return guac.Send(ctx, c, s, text, o.ctrlC, !o.noEnter)
 	case "key":
 		return guac.Press(ctx, c, s, o.keys)
 	case "scroll":

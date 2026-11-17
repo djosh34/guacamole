@@ -93,10 +93,10 @@ func TestLogStream(t *testing.T) {
 	must(t, "", "key", "ctrl+c")
 	waitScreen(t, "no prompt after guac key ctrl+c", func(s string) bool { return lastLine(s) == strings.TrimSpace(prompt) })
 
-	// The Ctrl+C that send presses first stops a running stream too.
+	// send -c presses Ctrl+C first, which stops a running stream too.
 	must(t, "", "send", "logstream 0.02")
 	waitScreen(t, "the stream did not start", func(s string) bool { return strings.Count(s, " tick seq=") >= 3 })
-	must(t, "", "send", "echo stopped-$((40+2))")
+	must(t, "", "send", "-c", "echo stopped-$((40+2))")
 	waitScreen(t, "the stream did not stop", endsWith("stopped-42"))
 	time.Sleep(500 * time.Millisecond)
 	if s := screen(t); !endsWith("stopped-42")(s) {
@@ -172,21 +172,27 @@ func TestSend(t *testing.T) {
 	must(t, "", "key", "enter")
 	waitFile(t, file, "later\n")
 
-	// --no-clear adds to the line; without it Ctrl+C clears the line first.
-	file = "/tmp/no-clear-" + id
+	// send adds to the line; with -c, Ctrl+C clears the line first.
+	file = "/tmp/add-" + id
 	must(t, "", "send", "--no-enter", "echo part1")
-	must(t, "", "send", "--no-clear", " part2 > "+file)
+	must(t, "", "send", " part2 > "+file)
 	waitFile(t, file, "part1 part2\n")
 	file = "/tmp/clear-" + id
 	must(t, "", "send", "--no-enter", "garbage")
-	must(t, "", "send", "echo clean > "+file)
+	must(t, "", "send", "-c", "echo clean > "+file)
 	waitFile(t, file, "clean\n")
+
+	// Without Ctrl+C, $? is the status of the last command.
+	file = "/tmp/status-" + id
+	must(t, "", "send", "ls /nope-"+id)
+	must(t, "", "send", "echo $? > "+file)
+	waitFile(t, file, "2\n")
 
 	// Answer a y/n prompt.
 	file = "/tmp/yn-" + id
 	must(t, "", "send", `read -p "Continue? [y/n] " a; echo "answer=$a" > `+file)
 	waitScreen(t, "no y/n prompt", func(s string) bool { return lastLine(s) == "Continue? [y/n]" })
-	must(t, "", "send", "--no-clear", "y")
+	must(t, "", "send", "y")
 	waitFile(t, file, "answer=y\n")
 }
 
