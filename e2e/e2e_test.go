@@ -166,7 +166,7 @@ func rowsOf(lines []string, cols int) []row {
 	return rows
 }
 
-// render gives the text guacd copies for rows. Since 1.6 a wrapped line
+// render gives the text guac screen prints for rows. Since 1.6 a wrapped line
 // comes back as one line; before, every row ends with a newline.
 func render(rows []row) string {
 	joinWrapped := !strings.HasPrefix(version, "1.4") && !strings.HasPrefix(version, "1.5")
@@ -177,7 +177,12 @@ func render(rows []row) string {
 			b.WriteString("\n")
 		}
 	}
-	return b.String()
+	// guac screen drops the blank rows at the bottom.
+	lines := strings.Split(b.String(), "\n")
+	for len(lines) > 1 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+		lines = lines[:len(lines)-1]
+	}
+	return strings.Join(lines, "\n")
 }
 
 // window finds the screen in rows: the index of its first row, or -1.

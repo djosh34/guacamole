@@ -22,12 +22,20 @@ async function guac(op, arg) {
   }
 
   // The text of Guacamole's status dialog ("Disconnected: You have been
-  // disconnected."), or '' when no dialog shows.
+  // disconnected."), or '' when no dialog shows. When the dialog has a
+  // Reconnect button, the text says how to use it.
   function dialog() {
     const n = document.querySelector('.client-status-modal .notification');
     if (!n || n.offsetParent === null) return '';
     const part = (sel) => (n.querySelector(sel)?.innerText || '').trim();
-    return [part('.title'), part('.body .text')].filter(Boolean).join(': ');
+    const text = [part('.title'), part('.body .text')].filter(Boolean).join(': ');
+    return reconnectButton() ? text + ' Run guac reconnect.' : text;
+  }
+
+  // Guacamole's Reconnect button, or null when none shows.
+  function reconnectButton() {
+    const b = document.querySelector('.client-status-modal button.reconnect');
+    return b && b.offsetParent !== null ? b : null;
   }
 
   // Resolves with the first truthy value that check returns when poke is
@@ -185,10 +193,8 @@ async function guac(op, arg) {
 
   // Clicks Reconnect in Guacamole's disconnect dialog.
   function reconnect() {
-    const button = document.querySelector('.client-status-modal button.reconnect');
-    if (!button || button.offsetParent === null) {
-      return { error: dialog() || 'the page shows no Reconnect button' };
-    }
+    const button = reconnectButton();
+    if (!button) return { error: dialog() || 'the page shows no Reconnect button' };
     button.click();
     return {};
   }

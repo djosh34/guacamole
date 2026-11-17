@@ -57,7 +57,8 @@ Text with newlines runs as several lines. A tab goes as Ctrl+V Tab, so the
 shell inserts it instead of completing a word.
 
 send prints nothing and does not wait for output; run guac screen for that.
-Flags go before TEXT.
+Flags go before TEXT. At a prompt, Ctrl+C cancels it: answer with
+guac key y enter, or send --no-clear.
 
   --no-clear  do not press Ctrl+C first
   --no-enter  do not press Enter after
@@ -220,6 +221,20 @@ func sendText(args []string, stdin io.Reader) (string, error) {
 	return strings.TrimSuffix(string(data), "\n"), nil
 }
 
+// screenText is the copied screen as guac screen prints it: the rows without
+// the blank ones at the bottom, each ending in a newline. The copy joins the
+// rows with newlines and has none at the end.
+func screenText(copied string) string {
+	rows := strings.Split(copied, "\n")
+	for len(rows) > 0 && strings.TrimSpace(rows[len(rows)-1]) == "" {
+		rows = rows[:len(rows)-1]
+	}
+	if len(rows) == 0 {
+		return ""
+	}
+	return strings.Join(rows, "\n") + "\n"
+}
+
 func run(args []string, stdin io.Reader, stdout io.Writer) (err error) {
 	o, cmd, err := parse(args)
 	if err != nil {
@@ -270,8 +285,7 @@ func run(args []string, stdin io.Reader, stdout io.Writer) (err error) {
 		if err != nil {
 			return err
 		}
-		// The copy joins the rows with newlines and has none at the end.
-		_, err = io.WriteString(stdout, text+"\n")
+		_, err = io.WriteString(stdout, screenText(text))
 		return err
 	case "send":
 		return guac.Send(ctx, c, s, text, !o.noClear, !o.noEnter)
