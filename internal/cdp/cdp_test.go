@@ -136,4 +136,10 @@ func TestDialErrors(t *testing.T) {
 	if _, err := Dial(ctx, srv.URL); err == nil || !strings.Contains(err.Error(), "404") {
 		t.Errorf("Dial(404 server) error = %v", err)
 	}
+	// A port that nothing listens on: the closed server's.
+	closed := httptest.NewServer(http.NotFoundHandler())
+	closed.Close()
+	if _, err := Dial(ctx, closed.URL); err == nil || err.Error() != "nothing listens on "+closed.URL+"; start Chrome with --remote-debugging-port" {
+		t.Errorf("Dial(closed port) error = %v", err)
+	}
 }

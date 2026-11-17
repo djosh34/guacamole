@@ -21,14 +21,14 @@ async function guac(op, arg) {
     return null;
   }
 
-  // The text of Guacamole's status dialog ("Disconnected: You have been
-  // disconnected."), or '' when no dialog shows. When the dialog has a
-  // Reconnect button, the text says how to use it.
+  // The text of Guacamole's status dialog ("You have been disconnected."),
+  // or its title when it has no text, or '' when no dialog shows. When the
+  // dialog has a Reconnect button, the text says how to use it.
   function dialog() {
     const n = document.querySelector('.client-status-modal .notification');
     if (!n || n.offsetParent === null) return '';
     const part = (sel) => (n.querySelector(sel)?.innerText || '').trim();
-    const text = [part('.title'), part('.body .text')].filter(Boolean).join(': ');
+    const text = part('.body .text') || part('.title');
     return reconnectButton() ? text + ' Run guac reconnect.' : text;
   }
 
@@ -192,9 +192,12 @@ async function guac(op, arg) {
   }
 
   // Clicks Reconnect in Guacamole's disconnect dialog.
-  function reconnect() {
+  function reconnect(mc) {
     const button = reconnectButton();
-    if (!button) return { error: dialog() || 'the page shows no Reconnect button' };
+    if (!button) {
+      const state = mc ? '; the session is ' + String(mc.clientState.connectionState).toLowerCase() : '';
+      return { error: dialog() || 'no Reconnect button showed' + state };
+    }
     button.click();
     return {};
   }
@@ -208,7 +211,7 @@ async function guac(op, arg) {
     if (!mc) return null;
     return { state: String(mc.clientState.connectionState).toLowerCase(), name: mc.name || mc.title || '', dialog: dialog() };
   }
-  if (op === 'reconnect') return reconnect();
+  if (op === 'reconnect') return reconnect(mc);
   if (!mc) return { error: 'this tab shows no Guacamole session' };
   if (op === 'keys') return keys(mc, arg);
   if (op === 'clipboard') return clipboard(mc, arg);

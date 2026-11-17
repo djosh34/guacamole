@@ -227,7 +227,7 @@ func TestPasteRefused(t *testing.T) {
 func TestReconnect(t *testing.T) {
 	open(t, "default", teststack.View{})
 	_, errOut, code := guac(t, "reconnect")
-	if code != 1 || !strings.Contains(errOut, "Reconnect") {
+	if code != 1 || !strings.Contains(errOut, "no Reconnect button showed; the session is connected") {
 		t.Fatalf("guac reconnect on a connected session: exit %d: %s", code, errOut)
 	}
 
@@ -257,4 +257,11 @@ func TestReconnect(t *testing.T) {
 	}
 	must(t, "", "send", "echo back-$((1+1))")
 	waitScreen(t, "send after reconnect", endsWith("back-2"))
+
+	// Guacamole shows the dialog about a second after the shell ends;
+	// reconnect right away waits for it.
+	must(t, "", "send", "exit")
+	must(t, "", "reconnect")
+	must(t, "", "send", "echo again-$((1+2))")
+	waitScreen(t, "send after exit and reconnect", endsWith("again-3"))
 }
