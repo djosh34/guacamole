@@ -50,8 +50,8 @@ async function guac(op, arg) {
   }
 
   // Our state between calls: the mouse position of the drag end, the time of
-  // our last click, the function that gives the clipboard back and the
-  // frames drawn since the last keys.
+  // our last click, the function that gives the clipboard back, the time of
+  // our last keys and the frames drawn since then.
   const st = (window.__guac = window.__guac || { lastClick: 0 });
 
   function giveBackClipboard() {
@@ -167,6 +167,7 @@ async function guac(op, arg) {
   // Sends key events: [pressed, keysym] pairs.
   async function keys(mc, events) {
     countFrames(mc.client);
+    st.lastKeys = Date.now();
     for (const [pressed, keysym] of events) mc.client.sendKeyEvent(pressed ? 1 : 0, keysym);
     const err = await sync(mc);
     return err ? { error: err } : {};
@@ -191,14 +192,22 @@ async function guac(op, arg) {
     return {};
   }
 
-  // Clicks Reconnect in Guacamole's disconnect dialog.
+  // Clicks Reconnect in Guacamole's disconnect dialog. Without the button,
+  // wait is true while it may still come: Guacamole shows it about a second
+  // after the session ends, and until then the session reads as connected.
+  // So wait while the session ends, or after guac sent keys, such as exit, a
+  // moment ago.
   function reconnect(mc) {
     const button = reconnectButton();
     if (!button) {
-      const state = mc ? '; the session is ' + String(mc.clientState.connectionState).toLowerCase() : '';
-      return { error: dialog() || 'no Reconnect button showed' + state };
+      const state = mc ? String(mc.clientState.connectionState).toLowerCase() : '';
+      const wait = state !== 'connected' || Date.now() - (st.lastKeys || 0) < 3000;
+      return { error: dialog() || 'no Reconnect button showed' + (state && '; the session is ' + state), wait };
     }
     button.click();
+    // Keys sent before do not concern the new connection, so a reconnect
+    // right after this one does not wait for them.
+    st.lastKeys = 0;
     return {};
   }
 

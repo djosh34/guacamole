@@ -241,18 +241,21 @@ func Scroll(ctx context.Context, c *cdp.Conn, s Session, up bool, pages int) err
 // Reconnect clicks Reconnect in the disconnect dialog of the session and
 // waits until it is connected again. Guacamole shows the dialog about a
 // second after the connection ends, so Reconnect waits up to 5 seconds for
-// the button.
+// the button while it may still come.
 func Reconnect(ctx context.Context, c *cdp.Conn, s Session) error {
 	end := time.Now().Add(5 * time.Second)
 	for {
-		var res struct{ Error string }
+		var res struct {
+			Error string
+			Wait  bool
+		}
 		if err := s.run(ctx, c, "reconnect", nil, &res); err != nil {
 			return err
 		}
 		if res.Error == "" {
 			break
 		}
-		if time.Now().After(end) {
+		if !res.Wait || time.Now().After(end) {
 			return errors.New(res.Error)
 		}
 		if err := sleep(ctx, 100*time.Millisecond); err != nil {

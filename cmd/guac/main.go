@@ -89,8 +89,9 @@ Enter of guac send, scrolls back to the bottom.
 	"reconnect": `usage: guac reconnect [--endpoint URL] [--page N]
 
 Clicks Reconnect in the disconnect dialog of the session and waits until it
-is connected again. Guacamole shows the dialog a moment after the session
-ends, so reconnect waits up to 5 seconds for it. It does not log in.
+is connected again. Guacamole shows the dialog about a second after the
+session ends, so right after guac send exit, reconnect waits for it. It does
+not log in.
 `,
 	"help": usage,
 }
