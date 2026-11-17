@@ -106,8 +106,8 @@ func guacIn(t *testing.T, stdin string, args ...string) (stdout, stderr string, 
 	return out.String(), errOut.String(), cmd.ProcessState.ExitCode()
 }
 
-// screen runs guac screen and returns the copied text, without the newline
-// guac adds at the end.
+// screen runs guac screen and returns what it prints, without the newline at
+// the end.
 func screen(t *testing.T, args ...string) string {
 	t.Helper()
 	out, errOut, code := guac(t, append([]string{"screen"}, args...)...)
