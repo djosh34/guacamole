@@ -232,13 +232,10 @@ func TestPasteRefused(t *testing.T) {
 
 func TestReconnect(t *testing.T) {
 	open(t, "default", teststack.View{})
-	// Without keys from guac a moment ago, a connected session answers at
-	// once.
+	// Without keys from guac a moment ago, reconnect on a connected session
+	// does nothing, at once.
 	start := time.Now()
-	_, errOut, code := guac(t, "reconnect")
-	if code != 1 || !strings.Contains(errOut, "no Reconnect button showed; the session is connected") {
-		t.Fatalf("guac reconnect on a connected session: exit %d: %s", code, errOut)
-	}
+	must(t, "", "reconnect")
 	if d := time.Since(start); d > time.Second {
 		t.Fatalf("guac reconnect on a connected session took %v", d)
 	}
@@ -253,7 +250,7 @@ func TestReconnect(t *testing.T) {
 				break
 			}
 		}
-		if code != 1 || !strings.Contains(strings.ToLower(errOut), "disconnected") || !strings.Contains(errOut, "Run guac reconnect.") {
+		if code != 1 || !strings.Contains(strings.ToLower(errOut), "disconnected") || !strings.HasSuffix(errOut, "; run guac reconnect\n") {
 			t.Fatalf("guac %s on a disconnected session: exit %d: %s", strings.Join(args, " "), code, errOut)
 		}
 		t.Logf("guac %s: %s", strings.Join(args, " "), strings.TrimSpace(errOut))

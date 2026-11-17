@@ -132,3 +132,24 @@ func TestScreenText(t *testing.T) {
 		}
 	}
 }
+
+func TestUsageHelp(t *testing.T) {
+	tests := []struct {
+		args []string
+		help string
+	}{
+		{[]string{"key", "foo"}, "guac key --help"},
+		{[]string{"send", "--nope", "x"}, "guac send --help"},
+		{[]string{"scroll", "left"}, "guac scroll --help"},
+		{[]string{"bogus"}, "guac help"},
+		{[]string{"--nope", "screen"}, "guac help"},
+		{[]string{"help", "a", "b"}, "guac help"},
+	}
+	for _, tt := range tests {
+		_, _, err := parse(tt.args)
+		var u usageError
+		if !errors.As(err, &u) || u.help() != tt.help {
+			t.Errorf("parse(%q): error %v, want a usage error that points to %q", tt.args, err, tt.help)
+		}
+	}
+}

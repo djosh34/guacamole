@@ -21,15 +21,17 @@ async function guac(op, arg) {
     return null;
   }
 
-  // The text of Guacamole's status dialog ("You have been disconnected."),
-  // or its title when it has no text, or '' when no dialog shows. When the
-  // dialog has a Reconnect button, the text says how to use it.
+  // The text of Guacamole's status dialog, or its title when it has no text,
+  // or '' when no dialog shows. It is written like guac's own errors:
+  // "you have been disconnected". When the dialog has a Reconnect button,
+  // the text says how to use it.
   function dialog() {
     const n = document.querySelector('.client-status-modal .notification');
     if (!n || n.offsetParent === null) return '';
     const part = (sel) => (n.querySelector(sel)?.innerText || '').trim();
-    const text = part('.body .text') || part('.title');
-    return reconnectButton() ? text + ' Run guac reconnect.' : text;
+    let text = (part('.body .text') || part('.title')).replace(/\.$/, '');
+    text = text.charAt(0).toLowerCase() + text.slice(1);
+    return reconnectButton() ? text + '; run guac reconnect' : text;
   }
 
   // Guacamole's Reconnect button, or null when none shows.
@@ -196,12 +198,13 @@ async function guac(op, arg) {
   // wait is true while it may still come: Guacamole shows it about a second
   // after the session ends, and until then the session reads as connected.
   // So wait while the session ends, or after guac sent keys, such as exit, a
-  // moment ago.
+  // moment ago. A connected session needs nothing.
   function reconnect(mc) {
     const button = reconnectButton();
     if (!button) {
       const state = mc ? String(mc.clientState.connectionState).toLowerCase() : '';
       const wait = state !== 'connected' || Date.now() - (st.lastKeys || 0) < 3000;
+      if (!wait) return {};
       return { error: dialog() || 'no Reconnect button showed' + (state && '; the session is ' + state), wait };
     }
     button.click();
