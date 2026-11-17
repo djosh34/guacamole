@@ -107,7 +107,7 @@ func guacIn(t *testing.T, stdin string, args ...string) (stdout, stderr string, 
 }
 
 // screen runs guac screen and returns what it prints, without the newline at
-// the end.
+// the end. A blank screen prints nothing.
 func screen(t *testing.T, args ...string) string {
 	t.Helper()
 	out, errOut, code := guac(t, append([]string{"screen"}, args...)...)
@@ -115,7 +115,7 @@ func screen(t *testing.T, args ...string) string {
 		t.Fatalf("guac screen: exit %d: %s", code, errOut)
 	}
 	text, ok := strings.CutSuffix(out, "\n")
-	if !ok {
+	if !ok && out != "" {
 		t.Fatalf("guac screen output does not end with a newline: %q", out)
 	}
 	return text
