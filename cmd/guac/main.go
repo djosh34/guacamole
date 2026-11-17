@@ -198,7 +198,10 @@ func parse(args []string) (options, string, error) {
 func flagError(err error) usageError {
 	msg := err.Error()
 	if name, ok := strings.CutPrefix(msg, "flag provided but not defined: "); ok {
-		return usageError{"unknown flag " + name}
+		return usageError{"unknown flag -" + name}
+	}
+	if name, ok := strings.CutPrefix(msg, "flag needs an argument: -"); ok {
+		return usageError{fmt.Sprintf("--%s needs a value", name)}
 	}
 	if rest, ok := strings.CutPrefix(msg, "invalid value "); ok {
 		value, name, _ := strings.Cut(rest, " for flag -")

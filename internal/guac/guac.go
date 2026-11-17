@@ -245,12 +245,15 @@ func Scroll(ctx context.Context, c *cdp.Conn, s Session, up bool, pages int) err
 func Reconnect(ctx context.Context, c *cdp.Conn, s Session) error {
 	end := time.Now().Add(5 * time.Second)
 	for {
-		err := s.do(ctx, c, "reconnect", nil)
-		if err == nil {
+		var res struct{ Error string }
+		if err := s.run(ctx, c, "reconnect", nil, &res); err != nil {
+			return err
+		}
+		if res.Error == "" {
 			break
 		}
 		if time.Now().After(end) {
-			return err
+			return errors.New(res.Error)
 		}
 		if err := sleep(ctx, 100*time.Millisecond); err != nil {
 			return err
