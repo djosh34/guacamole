@@ -90,16 +90,25 @@ guac send, scrolls back to the bottom.
 
 Clicks Reconnect in the disconnect dialog of the session and waits until it
 is connected again. Guacamole shows the dialog about a second after the
-session ends, so right after guac send exit, reconnect waits for it. It does
-not log in.
+session ends, so right after guac send exit, reconnect waits for it. On a
+connected session it does nothing. It does not log in.
 `,
 	"help": usage,
 }
 
-// usageError is bad usage: exit code 2.
-type usageError struct{ msg string }
+// usageError is bad usage: exit code 2. cmd is the command it is about, if
+// any.
+type usageError struct{ msg, cmd string }
 
 func (e usageError) Error() string { return e.msg }
+
+// help is the help command for the error.
+func (e usageError) help() string {
+	if e.cmd == "" || e.cmd == "help" {
+		return "guac help"
+	}
+	return "guac " + e.cmd + " --help"
+}
 
 func main() {
 	err := run(os.Args[1:], os.Stdin, os.Stdout)
@@ -109,7 +118,7 @@ func main() {
 	fmt.Fprintf(os.Stderr, "guac: %v\n", err)
 	var u usageError
 	if errors.As(err, &u) {
-		fmt.Fprintln(os.Stderr, "Run 'guac help' for usage.")
+		fmt.Fprintf(os.Stderr, "Run '%s' for usage.\n", u.help())
 		os.Exit(2)
 	}
 	os.Exit(1)
@@ -153,46 +162,60 @@ func parse(args []string) (options, string, error) {
 	}
 	cmd := rest[0]
 	if _, ok := commandHelp[cmd]; !ok {
-		return o, "", usageError{fmt.Sprintf("unknown command %q", cmd)}
+		return o, "", usageError{msg: fmt.Sprintf("unknown command %q", cmd)}
 	}
-	local := flags(&o, cmd)
-	if err := local.Parse(rest[1:]); err != nil {
-		return o, "", flagError(err)
+	run, err := parseCommand(&o, cmd, rest[1:])
+	if u, ok := err.(usageError); ok {
+		u.cmd = cmd
+		err = u
+	}
+	if err != nil {
+		return o, "", err
+	}
+	return o, run, nil
+}
+
+// parseCommand parses the flags and arguments of cmd into o and returns the
+// command to run.
+func parseCommand(o *options, cmd string, args []string) (string, error) {
+	local := flags(o, cmd)
+	if err := local.Parse(args); err != nil {
+		return "", flagError(err)
 	}
 	o.args = local.Args()
 	if o.help {
-		return o, cmd, nil
+		return cmd, nil
 	}
 	if cmd == "help" && len(o.args) == 1 {
 		if topic := o.args[0]; commandHelp[topic] != "" {
 			o.help, o.args = true, nil
-			return o, topic, nil
+			return topic, nil
 		}
 	}
 	if o.page < 0 {
-		return o, "", usageError{"--page must be a tab number from 1"}
+		return "", usageError{msg: "--page must be a tab number from 1"}
 	}
 	switch cmd {
 	case "send":
 	case "key":
 		if len(o.args) == 0 {
-			return o, "", usageError{"key needs a key, such as enter or ctrl+c"}
+			return "", usageError{msg: "key needs a key, such as enter or ctrl+c"}
 		}
 		var err error
 		if o.keys, err = guac.Keys(o.args...); err != nil {
-			return o, "", usageError{err.Error()}
+			return "", usageError{msg: err.Error()}
 		}
 	case "scroll":
 		var err error
 		if o.up, o.screens, err = scrollArgs(o.args); err != nil {
-			return o, "", err
+			return "", err
 		}
 	default:
 		if len(o.args) > 0 {
-			return o, "", usageError{fmt.Sprintf("%s takes no arguments", cmd)}
+			return "", usageError{msg: fmt.Sprintf("%s takes no arguments", cmd)}
 		}
 	}
-	return o, cmd, nil
+	return cmd, nil
 }
 
 // flagError rewords the errors of the flag package.
@@ -203,29 +226,29 @@ func flagError(err error) usageError {
 		if len(name) > 2 {
 			name = "-" + name
 		}
-		return usageError{"unknown flag " + name}
+		return usageError{msg: "unknown flag " + name}
 	}
 	if name, ok := strings.CutPrefix(msg, "flag needs an argument: -"); ok {
-		return usageError{fmt.Sprintf("--%s needs a value", name)}
+		return usageError{msg: fmt.Sprintf("--%s needs a value", name)}
 	}
 	if rest, ok := strings.CutPrefix(msg, "invalid value "); ok {
 		value, name, _ := strings.Cut(rest, " for flag -")
 		name, _, _ = strings.Cut(name, ":")
-		return usageError{fmt.Sprintf("bad value %s for --%s", value, name)}
+		return usageError{msg: fmt.Sprintf("bad value %s for --%s", value, name)}
 	}
-	return usageError{msg}
+	return usageError{msg: msg}
 }
 
 // scrollArgs parses up|down [N].
 func scrollArgs(args []string) (up bool, n int, err error) {
 	if len(args) == 0 || len(args) > 2 || args[0] != "up" && args[0] != "down" {
-		return false, 0, usageError{"scroll takes up or down and a number of screens"}
+		return false, 0, usageError{msg: "scroll takes up or down and a number of screens"}
 	}
 	n = 1
 	if len(args) == 2 {
 		n, err = strconv.Atoi(args[1])
 		if err != nil || n < 1 {
-			return false, 0, usageError{fmt.Sprintf("scroll: %q is not a number of screens", args[1])}
+			return false, 0, usageError{msg: fmt.Sprintf("scroll: %q is not a number of screens", args[1])}
 		}
 	}
 	return args[0] == "up", n, nil
@@ -275,7 +298,7 @@ func run(args []string, stdin io.Reader, stdout io.Writer) (err error) {
 		}
 	}
 	if o.endpoint == "" {
-		return usageError{"no browser endpoint; set BROWSER_CDP_URL or pass --endpoint"}
+		return usageError{msg: "no browser endpoint; set BROWSER_CDP_URL or pass --endpoint"}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
