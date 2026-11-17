@@ -106,8 +106,8 @@ func guacIn(t *testing.T, stdin string, args ...string) (stdout, stderr string, 
 	return out.String(), errOut.String(), cmd.ProcessState.ExitCode()
 }
 
-// screen runs guac screen and returns the copied text, without the newline
-// guac adds at the end.
+// screen runs guac screen and returns what it prints, without the newline at
+// the end. A blank screen prints nothing.
 func screen(t *testing.T, args ...string) string {
 	t.Helper()
 	out, errOut, code := guac(t, append([]string{"screen"}, args...)...)
@@ -115,7 +115,7 @@ func screen(t *testing.T, args ...string) string {
 		t.Fatalf("guac screen: exit %d: %s", code, errOut)
 	}
 	text, ok := strings.CutSuffix(out, "\n")
-	if !ok {
+	if !ok && out != "" {
 		t.Fatalf("guac screen output does not end with a newline: %q", out)
 	}
 	return text
@@ -166,7 +166,7 @@ func rowsOf(lines []string, cols int) []row {
 	return rows
 }
 
-// render gives the text guacd copies for rows. Since 1.6 a wrapped line
+// render gives the text guac screen prints for rows. Since 1.6 a wrapped line
 // comes back as one line; before, every row ends with a newline.
 func render(rows []row) string {
 	joinWrapped := !strings.HasPrefix(version, "1.4") && !strings.HasPrefix(version, "1.5")
@@ -177,7 +177,12 @@ func render(rows []row) string {
 			b.WriteString("\n")
 		}
 	}
-	return b.String()
+	// guac screen drops the blank rows at the bottom.
+	lines := strings.Split(b.String(), "\n")
+	for len(lines) > 1 && strings.TrimSpace(lines[len(lines)-1]) == "" {
+		lines = lines[:len(lines)-1]
+	}
+	return strings.Join(lines, "\n")
 }
 
 // window finds the screen in rows: the index of its first row, or -1.

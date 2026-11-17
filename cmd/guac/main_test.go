@@ -111,3 +111,18 @@ func TestSendText(t *testing.T) {
 		}
 	}
 }
+
+func TestScreenText(t *testing.T) {
+	tests := []struct{ copied, want string }{
+		{"a\nb", "a\nb\n"},
+		{"a\n$ \n\n  \n", "a\n$ \n"},
+		{"\n\n", ""},
+		{"", ""},
+		{"\na", "\na\n"},
+	}
+	for _, tt := range tests {
+		if got := screenText(tt.copied); got != tt.want {
+			t.Errorf("screenText(%q) = %q, want %q", tt.copied, got, tt.want)
+		}
+	}
+}

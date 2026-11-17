@@ -241,7 +241,7 @@ func TestReconnect(t *testing.T) {
 				break
 			}
 		}
-		if code != 1 || !strings.Contains(strings.ToLower(errOut), "disconnected") {
+		if code != 1 || !strings.Contains(strings.ToLower(errOut), "disconnected") || !strings.Contains(errOut, "Run guac reconnect.") {
 			t.Fatalf("guac %s on a disconnected session: exit %d: %s", strings.Join(args, " "), code, errOut)
 		}
 		t.Logf("guac %s: %s", strings.Join(args, " "), strings.TrimSpace(errOut))
