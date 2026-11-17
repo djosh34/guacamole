@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/coder/websocket"
 )
@@ -60,7 +61,7 @@ func Dial(ctx context.Context, endpoint string) (*Conn, error) {
 func browserURL(ctx context.Context, endpoint string) (string, error) {
 	u, err := url.Parse(endpoint)
 	if err != nil || u.Host == "" {
-		return "", fmt.Errorf("bad endpoint %q", endpoint)
+		return "", fmt.Errorf("bad endpoint %q; want a URL such as http://127.0.0.1:9222", endpoint)
 	}
 	switch u.Scheme {
 	case "ws", "wss":
@@ -75,6 +76,13 @@ func browserURL(ctx context.Context, endpoint string) (string, error) {
 		return "", err
 	}
 	resp, err := http.DefaultClient.Do(req)
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		return "", fmt.Errorf("nothing listens on %s; start Chrome with --remote-debugging-port", endpoint)
+	}
+	var uerr *url.Error
+	if errors.As(err, &uerr) {
+		err = uerr.Err
+	}
 	if err != nil {
 		return "", fmt.Errorf("connect to %s: %w", endpoint, err)
 	}

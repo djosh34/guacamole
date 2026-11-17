@@ -89,7 +89,8 @@ Enter of guac send, scrolls back to the bottom.
 	"reconnect": `usage: guac reconnect [--endpoint URL] [--page N]
 
 Clicks Reconnect in the disconnect dialog of the session and waits until it
-is connected again. It does not log in.
+is connected again. Guacamole shows the dialog a moment after the session
+ends, so reconnect waits up to 5 seconds for it. It does not log in.
 `,
 	"help": usage,
 }
@@ -143,7 +144,7 @@ func parse(args []string) (options, string, error) {
 	o := options{endpoint: os.Getenv("BROWSER_CDP_URL")}
 	global := flags(&o, "")
 	if err := global.Parse(args); err != nil {
-		return o, "", usageError{err.Error()}
+		return o, "", flagError(err)
 	}
 	rest := global.Args()
 	if o.help || len(rest) == 0 {
@@ -155,7 +156,7 @@ func parse(args []string) (options, string, error) {
 	}
 	local := flags(&o, cmd)
 	if err := local.Parse(rest[1:]); err != nil {
-		return o, "", usageError{err.Error()}
+		return o, "", flagError(err)
 	}
 	o.args = local.Args()
 	if o.help {
@@ -191,6 +192,23 @@ func parse(args []string) (options, string, error) {
 		}
 	}
 	return o, cmd, nil
+}
+
+// flagError rewords the errors of the flag package.
+func flagError(err error) usageError {
+	msg := err.Error()
+	if name, ok := strings.CutPrefix(msg, "flag provided but not defined: "); ok {
+		return usageError{"unknown flag -" + name}
+	}
+	if name, ok := strings.CutPrefix(msg, "flag needs an argument: -"); ok {
+		return usageError{fmt.Sprintf("--%s needs a value", name)}
+	}
+	if rest, ok := strings.CutPrefix(msg, "invalid value "); ok {
+		value, name, _ := strings.Cut(rest, " for flag -")
+		name, _, _ = strings.Cut(name, ":")
+		return usageError{fmt.Sprintf("bad value %s for --%s", value, name)}
+	}
+	return usageError{msg}
 }
 
 // scrollArgs parses up|down [N].

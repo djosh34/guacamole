@@ -75,9 +75,12 @@ func Pick(ctx context.Context, c *cdp.Conn, page int) (Session, error) {
 			return Session{}, err
 		}
 		if page > len(tabs) {
-			return Session{}, fmt.Errorf("there is no page %d; the browser has %d tabs", page, len(tabs))
+			return Session{}, fmt.Errorf("there is no page %d; guac sessions lists the pages", page)
 		}
-		s, _, err := session(ctx, c, tabs[page-1])
+		s, ok, err := session(ctx, c, tabs[page-1])
+		if err == nil && !ok {
+			err = fmt.Errorf("page %d shows no Guacamole session; guac sessions lists the pages", page)
+		}
 		return s, err
 	}
 	all, err := Sessions(ctx, c)
@@ -236,10 +239,25 @@ func Scroll(ctx context.Context, c *cdp.Conn, s Session, up bool, pages int) err
 }
 
 // Reconnect clicks Reconnect in the disconnect dialog of the session and
-// waits until it is connected again.
+// waits until it is connected again. Guacamole shows the dialog about a
+// second after the connection ends, so Reconnect waits up to 5 seconds for
+// the button.
 func Reconnect(ctx context.Context, c *cdp.Conn, s Session) error {
-	if err := s.do(ctx, c, "reconnect", nil); err != nil {
-		return err
+	end := time.Now().Add(5 * time.Second)
+	for {
+		var res struct{ Error string }
+		if err := s.run(ctx, c, "reconnect", nil, &res); err != nil {
+			return err
+		}
+		if res.Error == "" {
+			break
+		}
+		if time.Now().After(end) {
+			return errors.New(res.Error)
+		}
+		if err := sleep(ctx, 100*time.Millisecond); err != nil {
+			return err
+		}
 	}
 	for {
 		var v struct{ State, Dialog string }
