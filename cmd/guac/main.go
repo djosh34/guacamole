@@ -58,7 +58,8 @@ shell inserts it instead of completing a word.
 
 send prints nothing and does not wait for output; run guac screen for that.
 Flags go before TEXT. At a prompt, Ctrl+C cancels it: answer with
-guac key y enter, or send --no-clear.
+guac key y enter, or send --no-clear. Ctrl+C also sets $? to 130: read the
+status of the last command with guac send --no-clear 'echo $?'.
 
   --no-clear  do not press Ctrl+C first
   --no-enter  do not press Enter after
