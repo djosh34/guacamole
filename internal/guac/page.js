@@ -50,8 +50,8 @@ async function guac(op, arg) {
   }
 
   // Our state between calls: the mouse position of the drag end, the time of
-  // our last click, the function that gives the clipboard back and the
-  // frames drawn since the last keys.
+  // our last click, the function that gives the clipboard back, the time of
+  // our last keys and the frames drawn since then.
   const st = (window.__guac = window.__guac || { lastClick: 0 });
 
   function giveBackClipboard() {
@@ -205,6 +205,8 @@ async function guac(op, arg) {
       return { error: dialog() || 'no Reconnect button showed' + (state && '; the session is ' + state), wait };
     }
     button.click();
+    // Keys sent before do not concern the new connection, so a reconnect
+    // right after this one does not wait for them.
     st.lastKeys = 0;
     return {};
   }
