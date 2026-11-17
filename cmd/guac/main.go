@@ -74,7 +74,8 @@ Examples:
 Presses keys in order. A key is a single character, sent as written, or one
 of these names: enter tab esc backspace delete up down left right home end
 pgup pgdn space f1 to f12. Put ctrl+, alt+ or shift+ in front for a
-modifier. Names ignore case.
+modifier. Names ignore case. To type text, such as a search in less, use
+guac send --no-clear --no-enter.
 
 Examples:
   guac key ctrl+c
