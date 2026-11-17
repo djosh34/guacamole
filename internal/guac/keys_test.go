@@ -44,7 +44,7 @@ func TestKeys(t *testing.T) {
 	}
 	// A word that is no key name points to the names and to send; a modifier
 	// with it does not.
-	hint := "guac key --help lists the names, and guac send --no-clear --no-enter types text"
+	hint := "guac key --help lists the names, and guac send --no-enter types text"
 	if _, err := Keys("/ERROR"); err == nil || err.Error() != `unknown key "/ERROR"; `+hint {
 		t.Errorf("Keys(/ERROR): %v", err)
 	}
